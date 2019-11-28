@@ -41,26 +41,50 @@ dependencies {
 }
 ```
 
+### Maven:
+
+Step 1. Add it in your root build.gradle at the end of repositories:
+
+```groovy
+<repositories>
+	...
+	<repository>
+		<id>jitpack.io</id>
+		 <url>https://jitpack.io</url>
+	</repository>
+</repositories>
+```
+
+Step 2. Add the dependency
+```groovy
+<dependency>
+	...
+	<groupId>com.github.bad-mash</groupId>
+	<artifactId>mockLocationDetector</artifactId>
+	<version>Tag</version>
+</dependency>
+```
+
 ## Usage
 
 From anywhere on your code just call the class MockLocationDetector to access the following available static methods
 
-1. `isAllowMockLocationsEnabled`
+1. `isAllowMockLocationsEnabled` *Depricated*
 2. `isMockLocation` 
-3. `isMockLocationOrMockEnabled`
+3. `isMockLocationOrMockEnabled` *Depricated*
 4. `checkForAllowMockLocationsApps`
-5. 'checkForKnownMockApps'
+5. `checkForKnownMockApps`
 6. `removeMockLocationProvider`
 
-To detect if Mock location setting is enabled onthe device, just call the method isAllowMockLocationsEnabled and pass the context object. This method only works on Lollipop and below (API 22-). If this method is called on higher apis it then it will throw UnsupportedOperationException. This method id mainly for legacy use.
+To detect if Mock location setting is enabled onthe device, just call the method `isAllowMockLocationsEnabled` and pass the context object. This method only works on Lollipop and below (API 22-). If this method is called on higher apis it then it will throw UnsupportedOperationException. This method id mainly for legacy use.
 
-To detect if the location object you received is a mock, call the method isMockLocation and pass the location object. This method only works on Jelly Bean and above (API 18+). If this method is called on lower apis it then it will throw UnsupportedOperationException. This should be preferred and is recommended method for most cases.
+To detect if the location object you received is a mock, call the method `isMockLocation` and pass the location object. This method only works on Jelly Bean and above (API 18+). If this method is called on lower apis it then it will throw UnsupportedOperationException. This should be preferred and is recommended method for most cases.
 
-To detect if the location object you received is a mock, call the method isLocationFromMockProvider and pass the context and the location object. This method only works on Jelly Bean and above (API 18+). If this method is called on lower apis it then it will check if Allow Mock Locations is ON or not and return the result. This method (though universal in terms pf api) should be used only if necessary (*prefer above two implementations*).
+To detect if the location object you received is a mock, call the method `isLocationFromMockProvider` and pass the context and the location object. This method only works on Jelly Bean and above (API 18+). If this method is called on lower apis it then it will check if Allow Mock Locations is ON or not and return the result. This method (though universal in terms pf api) should be used only if necessary (*prefer above two implementations*).
 
-To detect if there are apps on the device that have "ALLOW_MOCK_LOCATIONS" permission on their manifest, call checkForAllowMockLocationsApps. This method is usefull for apps that use root access to enable/disable allow mock locations at runtime on lower apis (API 17 or lower). Starting on Marshmallow its no longer possible to enable/disable allow mock locations at runtime with root permissions, user selects the app that will be used for mock locations.
+To detect if there are apps on the device that have "ALLOW_MOCK_LOCATIONS" permission on their manifest, call `checkForAllowMockLocationsApps`. This method is usefull for apps that use root access to enable/disable allow mock locations at runtime on lower apis (API 17 or lower). Starting on Marshmallow its no longer possible to enable/disable allow mock locations at runtime with root permissions, user selects the app that will be used for mock locations.
 
-To detect if any already know(popular) mock app is installed on the device, call checkForKnownMockApps   
+To detect if any already know(popular) mock app is installed on the device, call `checkForKnownMockApps`  
 
 
 ## Contributors
@@ -70,7 +94,7 @@ To detect if any already know(popular) mock app is installed on the device, call
 
 ## License
 [Apache License]( http://www.apache.org/licenses/LICENSE-2.0)
-**Copyright 2019 Vivekanand Mishra**
+**Copyright 2019 Vivekanand Mishra** <br>
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
