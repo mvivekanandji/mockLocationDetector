@@ -69,9 +69,9 @@ Step 2. Add the dependency
 
 From anywhere on your code just call the class MockLocationDetector to access the following available static methods
 
-1. `isAllowMockLocationsEnabled` *Depricated*
+1. `isAllowMockLocationsEnabled` *[Depricated]*
 2. `isMockLocation` 
-3. `isMockLocationOrMockEnabled` *Depricated*
+3. `isMockLocationOrMockEnabled` *[Depricated]*
 4. `checkForAllowMockLocationsApps`
 5. `checkForKnownMockApps`
 6. `removeMockLocationProvider`
