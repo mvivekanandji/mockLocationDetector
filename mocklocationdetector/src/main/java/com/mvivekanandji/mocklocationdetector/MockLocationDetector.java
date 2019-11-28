@@ -1,7 +1,8 @@
 package com.mvivekanandji.mocklocationdetector;
 
-import android.Manifest;
+import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -12,12 +13,23 @@ import android.provider.Settings;
 import android.util.Log;
 
 import androidx.annotation.RequiresApi;
-import androidx.annotation.RequiresPermission;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
-import static android.Manifest.permission.ACCESS_COARSE_LOCATION;
-import static android.Manifest.permission.ACCESS_FINE_LOCATION;
 import static android.content.Context.LOCATION_SERVICE;
 
 /**
@@ -36,27 +48,58 @@ import static android.content.Context.LOCATION_SERVICE;
  * limitations under the License.
  * <p>
  * Created by Vivekanand Mishra on 27/11/19.
+ * @author vivekanand
+ * @version 1.0
  */
 public class MockLocationDetector {
 
     private static final String TAG = MockLocationDetector.class.getSimpleName();
 
+    private final Context context;
     private boolean verbose;
-    private boolean quite;
     private boolean debug;
+    private static  boolean userAddedPackageCount;
+    private static String blackListAppsFilePath = "BlackListApps.txt";
+
+    private static Set<String> applicationPackageMap = new HashSet<>();
+
+    @SuppressLint("StaticFieldLeak") //application context will be used,
+    private static MockLocationDetector mockLocationDetector;
+
+    /**
+     * private constructor
+     *
+     */
+    private MockLocationDetector(Context context){
+        this.context = context;
+        verbose = false;
+        debug = false;
+    }
+
+    /**
+     *
+     * @param context Activity Context
+     * @return MockLocationDetector
+     */
+    public static MockLocationDetector with(Context context){
+        if(context == null)
+            throw new IllegalArgumentException("Context must not be null.");
+
+        if(mockLocationDetector == null)
+            mockLocationDetector = new MockLocationDetector(context.getApplicationContext());
+
+        return mockLocationDetector;
+    }
+
 
 
     /**
      * For Build.VERSION.SDK_INT <= 21 i.e. LOLLIPOP
-     * Detects if Mock location setting is enabled the device
-     *
-     * Will always return false on Marshmallow and above because the settings have been
-     * updated and its not possible to check if an app has been allowed
+     * Detects if Mock location setting is enabled on the device
      *
      * @param context Application Context
      * @return true if mock location setting is enabled, false if disabled
      * @throws UnsupportedOperationException if Build version is greater than Lollipop (API 22)
-     *
      */
     @Deprecated
     public static boolean isAllowMockLocationsEnabled(Context context) {
@@ -65,7 +108,26 @@ public class MockLocationDetector {
                     Settings.Secure.ALLOW_MOCK_LOCATION).equals("0");
 
         else throw new UnsupportedOperationException("Operation not supported for " +
-                    "Marshmallow (API 23) and above.");
+                "Marshmallow (API 23) and above.");
+    }
+
+
+    /**
+     * Detects if Mock location setting is enabled on the device or is the location is mocked
+     * <p>
+     * Will always return false on Marshmallow and above because the settings have been
+     * updated and its not possible to check if an app has been allowed
+     *
+     * @param context  Application Context
+     * @param location Pass Location object received from the OS's onLocationChanged() callback
+     * @return true if mock location setting is enabled, false if disabled (for api <=21)
+     * else true if location is mocked, false if location is not mocked
+     */
+    @Deprecated
+    public static boolean isMockLocationOrMockEnabled(Context context, Location location) {
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.LOLLIPOP)
+            return isAllowMockLocationsEnabled(context);
+        else return isMockLocation(location);
     }
 
     /**
@@ -78,7 +140,7 @@ public class MockLocationDetector {
      */
     @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN_MR2)
     public static boolean isMockLocation(Location location) {
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2)
             return location != null && location.isFromMockProvider();
 
         else throw new UnsupportedOperationException("Operation not supported for " +
@@ -91,17 +153,12 @@ public class MockLocationDetector {
      * @param context Application Context
      * @return true if app requiring mock permission is available, false if no such app present
      */
-    public static boolean checkForAllowMockLocationsApps(Context context) {
-        int count = 0;
+    public static boolean checkForAllowMockLocationApp(Context context) {
 
-        PackageManager packageManager = context.getPackageManager();
-        List<ApplicationInfo> applicationInfoList =
-                packageManager.getInstalledApplications(PackageManager.GET_META_DATA);
-
-        for (ApplicationInfo applicationInfo : applicationInfoList) {
+        for (ApplicationInfo applicationInfo : getAllApps(context)) {
             try {
-                PackageInfo packageInfo = packageManager.getPackageInfo(applicationInfo.packageName,
-                        PackageManager.GET_PERMISSIONS);
+                PackageInfo packageInfo = context.getPackageManager()
+                        .getPackageInfo(applicationInfo.packageName, PackageManager.GET_PERMISSIONS);
 
                 String[] requestedPermissions = packageInfo.requestedPermissions;
 
@@ -109,13 +166,66 @@ public class MockLocationDetector {
                     for (String requestedPermission : requestedPermissions)
                         if (requestedPermission.equals("android.permission.ACCESS_MOCK_LOCATION")
                                 && !applicationInfo.packageName.equals(context.getPackageName()))
-                            count++;
+                          return true;
 
             } catch (PackageManager.NameNotFoundException e) {
                 Log.e(TAG, "Got exception " + e.getMessage());
             }
         }
-        return count > 0;
+        return false;
+    }
+
+    public static List<ApplicationInfo> getMockLocationAppsApplicationInfo(Context context) {
+        List<ApplicationInfo> mockApplicationInfoList = new ArrayList<>();
+
+        for (ApplicationInfo applicationInfo : getAllApps(context)) {
+            try {
+                PackageInfo packageInfo = context.getPackageManager()
+                        .getPackageInfo(applicationInfo.packageName, PackageManager.GET_PERMISSIONS);
+
+                String[] requestedPermissions = packageInfo.requestedPermissions;
+
+                if (requestedPermissions != null)
+                    for (String requestedPermission : requestedPermissions)
+                        if (requestedPermission.equals("android.permission.ACCESS_MOCK_LOCATION")
+                                && !applicationInfo.packageName.equals(context.getPackageName()))
+                            mockApplicationInfoList.add(applicationInfo);
+
+            } catch (PackageManager.NameNotFoundException e) {
+                Log.e(TAG, "Got exception " + e.getMessage());
+            }
+        }
+        return mockApplicationInfoList;
+    }
+
+    public static int getMockLocationAppsCount(Context context) {
+        return getMockLocationAppsApplicationInfo(context).size();
+
+    }
+
+    public static List<String> getMockLocationAppsNames(Context context) {
+        List<String> appNamesList = new ArrayList<>();
+
+        for(ApplicationInfo applicationInfo : getMockLocationAppsApplicationInfo(context))
+            appNamesList.add(applicationInfo.loadLabel(context.getPackageManager()).toString());
+
+        return appNamesList;
+    }
+
+    public static List<String> getMockLocationAppsPackageNames(Context context) {
+        List<String> appPackageList = new ArrayList<>();
+
+        for(ApplicationInfo applicationInfo : getMockLocationAppsApplicationInfo(context))
+            appPackageList.add(applicationInfo.packageName);
+
+        return appPackageList;
+    }
+
+    public static boolean checkForKnownMockApps(Context context) {
+        for (ApplicationInfo applicationInfo : getAllApps(context))
+            if (applicationPackageMap.contains(applicationInfo.packageName))
+                return true;
+        return false;
     }
 
     /**
@@ -123,21 +233,54 @@ public class MockLocationDetector {
      *
      * @param context Application Context
      * @throws NullPointerException if getSystemService(service name) returns null
-     *
      */
-    public static void removeMockLocationProvider(Context context){
+    public static void removeMockLocationProvider(Context context) {
         LocationManager locationManager = (LocationManager) context.getSystemService(LOCATION_SERVICE);
 
         try {
-            if(locationManager != null)
+            if (locationManager != null)
                 locationManager.removeTestProvider(LocationManager.GPS_PROVIDER);
 
             else throw new NullPointerException("Location Manager is null.");
 
         } catch (IllegalArgumentException error) {
-            Log.d(TAG,"Got exception in removing test  provider");
+            Log.d(TAG, "Got exception in removing test  provider");
         }
-
     }
+
+    public static void setBlackListAppsFilePath(String filePtah){
+        blackListAppsFilePath = filePtah;
+    }
+
+    private static List<ApplicationInfo> getAllApps(Context context) {
+        final PackageManager packageManager = context.getPackageManager();
+        return packageManager.getInstalledApplications(PackageManager.GET_META_DATA);
+    }
+
+
+
+    private static Set<String> readFileToSet(String filePath)
+    {
+        Set<String> stringSet = new HashSet<>();
+
+        try (BufferedReader bufferedReader = new BufferedReader(new FileReader(filePath))) {
+            String currentLine;
+            while ((currentLine = bufferedReader.readLine()) != null)
+                stringSet.add(currentLine);
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
+        return stringSet;
+    }
+
+    private void displayError(String errorMessage){
+        if(debug) Log.e(TAG, errorMessage);
+    }
+
+    private void displayInfo(String infoMessage){
+        if(verbose) Log.i(TAG, infoMessage);
+    }
+
 
 }
