@@ -104,7 +104,7 @@ public class MockLocationDetector {
      *
      */
     @Deprecated
-    public boolean isAllowMockLocationsEnabled() {
+    public boolean isAllowMockLocationsEnabled() throws UnsupportedOperationException {
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.LOLLIPOP)
             return !Settings.Secure.getString(context.getContentResolver(),
                     Settings.Secure.ALLOW_MOCK_LOCATION).equals("0");
@@ -127,7 +127,8 @@ public class MockLocationDetector {
      * else true if location is mocked, false if location is not mocked
      */
     @Deprecated
-    public boolean isMockLocationOrMockEnabled(Context context, Location location) {
+    public boolean isMockLocationOrMockEnabled(Context context, Location location)
+    throws UnsupportedOperationException{
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.LOLLIPOP)
             return isAllowMockLocationsEnabled();
         else return isMockLocation(location);
@@ -142,7 +143,7 @@ public class MockLocationDetector {
      * @throws UnsupportedOperationException if Build version is less than Jelly Bean MR2 (API 18)
      */
     @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN_MR2)
-    public boolean isMockLocation(Location location) {
+    public boolean isMockLocation(Location location) throws UnsupportedOperationException{
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2)
             return location != null && location.isFromMockProvider();
 
